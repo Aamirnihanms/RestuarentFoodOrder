@@ -7,7 +7,9 @@ const orderSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    userName: { type: String, required: true }, // ✅ store user name snapshot
+    userName: { type: String, required: true },
+
+    // Ordered items
     items: [
       {
         foodId: {
@@ -24,7 +26,18 @@ const orderSchema = new mongoose.Schema(
         totalItemPrice: { type: Number, required: true },
       },
     ],
+
+    // 💰 Pricing Breakdown
+    subtotal: { type: Number, required: true },
+    tax: { type: Number, default: 0 },
+    deliveryFee: { type: Number, default: 0 },
+    discount: { type: Number, default: 0 },
     totalPrice: { type: Number, required: true },
+
+    // 🎟️ Promo
+    appliedPromo: { type: String, default: null },
+
+    deliveryAddress: { type: String, required: true },
     status: {
       type: String,
       enum: ["Pending", "Confirmed", "Delivered", "Cancelled"],
@@ -35,11 +48,9 @@ const orderSchema = new mongoose.Schema(
       enum: ["COD", "Online"],
       default: "COD",
     },
-    deliveryAddress: { type: String, required: true },
   },
   { timestamps: true }
 );
-
 
 const Order = mongoose.model("Order", orderSchema);
 export default Order;

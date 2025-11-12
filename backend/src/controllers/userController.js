@@ -83,15 +83,20 @@ export const loginUser = async (req, res) => {
         endpoint: req.originalUrl,
       });
 
+    
+      const defaultAddress = user.addresses?.find(addr => addr.isDefault) || null;
+
       res.json({
         user: {
           _id: user._id,
           name: user.name,
           email: user.email,
           role: user.role,
+          address: defaultAddress, 
         },
         token: generateToken(user._id),
       });
+
     } else {
       await createLog({
         action: "User Login Attempt",

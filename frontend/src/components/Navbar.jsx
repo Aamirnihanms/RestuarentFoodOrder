@@ -82,7 +82,7 @@ export default function Navbar({ cartCount = 0, isAuthenticated = false }) {
             {/* User Profile / Auth */}
             {isUserAuthenticated ? (
               <div className="hidden md:flex items-center space-x-2">
-                <button className="flex items-center space-x-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-full hover:bg-emerald-100 transition-all">
+                <button onClick={() => navigate('/profile')} className="flex items-center space-x-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-full hover:bg-emerald-100 transition-all">
                   <User className="w-5 h-5" />
                   <span className="font-medium">Profile</span>
                 </button>

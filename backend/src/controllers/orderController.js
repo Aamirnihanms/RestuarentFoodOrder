@@ -10,97 +10,73 @@ import { createLog } from "../utils/logger.js"; // ✅ import logger utility
  */
 export const createOrder = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).populate("cart.foodId");
-    const { selectedItems = [], paymentMethod, deliveryAddress } = req.body;
+    const user = await User.findById(req.user._id);
+    const { selectedItems = [], paymentMethod, deliveryAddress, pricing, appliedPromo } = req.body;
 
     if (!user) {
-      await createLog({
-        action: "Order Creation",
-        description: `Order failed — User not found`,
-        ipAddress: req.ip,
-        method: req.method,
-        endpoint: req.originalUrl,
-        status: "failed",
-      });
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (!user.cart || user.cart.length === 0) {
-      await createLog({
-        user: user._id,
-        action: "Order Creation",
-        description: `Order failed — Empty cart`,
-        ipAddress: req.ip,
-        method: req.method,
-        endpoint: req.originalUrl,
-        status: "failed",
-      });
-      return res.status(400).json({ message: "Cart is empty" });
+    if (!selectedItems.length) {
+      return res.status(400).json({ message: "No items provided" });
     }
 
-    let itemsToOrder = [];
-    if (selectedItems.length > 0) {
-      itemsToOrder = user.cart.filter((cartItem) =>
-        selectedItems.some(
-          (sel) => sel.foodId === cartItem.foodId._id.toString()
-        )
-      );
-    } else {
-      itemsToOrder = user.cart;
-    }
+    // ✅ Rebuild order items safely
+    const orderItems = [];
+    for (const sel of selectedItems) {
+      const food = await Food.findById(sel.foodId);
+      if (!food) continue; // skip invalid food IDs
 
-    if (!itemsToOrder.length) {
-      await createLog({
-        user: user._id,
-        action: "Order Creation",
-        description: `Order failed — No valid items selected`,
-        ipAddress: req.ip,
-        method: req.method,
-        endpoint: req.originalUrl,
-        status: "failed",
-      });
-      return res.status(400).json({ message: "No valid items found to order" });
-    }
+      const quantity = sel.quantity || 1;
+      const price = sel.price || food.price;
+      const totalItemPrice = price * quantity;
 
-    const orderItems = itemsToOrder.map((item) => {
-      const food = item.foodId;
-      return {
+      orderItems.push({
         foodId: food._id,
         name: food.name,
         image: food.image,
         category: food.category,
-        price: food.price,
-        size: item.size || "Regular",
-        quantity: item.quantity,
-        totalItemPrice: food.price * item.quantity,
-      };
-    });
+        size: sel.size || "Regular",
+        price,
+        quantity,
+        totalItemPrice,
+      });
+    }
 
-    const totalPrice = orderItems.reduce(
+    if (orderItems.length === 0) {
+      return res.status(400).json({ message: "No valid items to order" });
+    }
+
+    // ✅ Calculate totals (fallback to server-side calculation for safety)
+    const calculatedSubtotal = orderItems.reduce(
       (sum, item) => sum + item.totalItemPrice,
       0
     );
+
+    const subtotal = pricing?.subtotal || calculatedSubtotal;
+    const tax = pricing?.tax || 0;
+    const deliveryFee = pricing?.deliveryFee || 0;
+    const discount = pricing?.discount || 0;
+    const totalPrice = pricing?.total || subtotal + tax + deliveryFee - discount;
 
     const order = await Order.create({
       user: user._id,
       userName: user.name,
       items: orderItems,
+      subtotal,
+      tax,
+      deliveryFee,
+      discount,
       totalPrice,
+      appliedPromo: appliedPromo || null,
       paymentMethod,
       deliveryAddress: deliveryAddress || user.address || "No address provided",
     });
 
-    // ✅ Clear ordered items from cart
-    user.cart = user.cart.filter(
-      (cartItem) =>
-        !itemsToOrder.some(
-          (ordered) =>
-            ordered.foodId._id.toString() === cartItem.foodId._id.toString()
-        )
-    );
+    // ✅ Optionally clear cart
+    user.cart = [];
     await user.save();
 
-    // ✅ Log successful order creation
     await createLog({
       user: user._id,
       action: "Order Placed",
@@ -128,6 +104,7 @@ export const createOrder = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 /**
  * @desc Get all orders for current user

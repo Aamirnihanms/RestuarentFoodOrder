@@ -7,6 +7,7 @@ import FoodDetailPage from './pages/Detail'
 import CartPage from './pages/Cart'
 import AdminPanel from './pages/admin/Admin'
 import ProtectedRoute from './components/ProtectedRoute'
+import ProfilePage from './pages/Profile'
 
 function App() {
 
@@ -17,6 +18,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/food/:id" element={<FoodDetailPage/>} />
           <Route path="/cart" element={<CartPage/>} />
+          <Route path="/profile" element={<ProfilePage/>}/>
           <Route
           path="/admin"
           element={

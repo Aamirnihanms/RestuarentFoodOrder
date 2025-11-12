@@ -10,6 +10,7 @@ import adminUserRoutes from "./routes/adminUserRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
 import logRoutes from "./routes/logRoutes.js";
 import settingsRoute from "./routes/settingsRoute.js";
+import addressRoutes from "./routes/addressRoutes.js";
 import cors from "cors";
 
 
@@ -31,6 +32,7 @@ app.use("/api/admin/users", adminUserRoutes);
 app.use("/api/admin/review", reviewRoutes);
 app.use("/api/admin/logs", logRoutes);
 app.use("/api/settings", settingsRoute);
+app.use("/api/addresses", addressRoutes);
 
 
 

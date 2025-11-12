@@ -127,11 +127,25 @@ export default function CartPage() {
 
     setTimeout(async () => {
       try {
-        const orderPayload = {
-          selectedItems: cartItems.map(item => ({ foodId: item.foodId })),
-          paymentMethod: paymentMethod,
-          deliveryAddress: deliveryType === 'delivery' ? deliveryAddress : 'Pickup from store'
-        };
+const orderPayload = {
+  selectedItems: cartItems.map(item => ({
+    foodId: item.foodId,
+    quantity: item.quantity,
+    price: item.price,
+    size: item.size || "Regular"
+  })),
+  paymentMethod,
+  deliveryAddress: deliveryType === 'delivery' ? deliveryAddress : 'Pickup from store',
+  pricing: {
+    subtotal,
+    tax,
+    deliveryFee,
+    discount,
+    total
+  },
+  appliedPromo: appliedPromo ? appliedPromo.code : null
+};
+
 
         const response = await createOrder(orderPayload);
         setOrderSuccess(true);

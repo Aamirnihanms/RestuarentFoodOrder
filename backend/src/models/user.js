@@ -1,6 +1,20 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
+const addressSchema = new mongoose.Schema(
+  {
+    label: { type: String, default: "Home" }, // Home, Work, etc.
+    street: { type: String, required: true },
+    city: { type: String, required: true },
+    state: { type: String, required: true },
+    zip: { type: String },
+    country: { type: String, default: "India" },
+    phone: { type: String }, // optional phone for that address
+    isDefault: { type: Boolean, default: false },
+  },
+  { _id: false } // prevent nested _id
+);
+
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
@@ -8,11 +22,16 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true },
     role: { type: String, default: "user" },
 
+    phone: { type: String, default: "" }, // Optional user contact number
+
+    // ✅ Multiple saved addresses
+    addresses: [addressSchema],
+
     // ✅ Soft delete & active control
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
 
-    // ✅ Cart stays same
+    // ✅ Cart remains unchanged
     cart: [
       {
         foodId: { type: mongoose.Schema.Types.ObjectId, ref: "Food" },
@@ -30,6 +49,7 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// ✅ Password hash before save
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
   const salt = await bcrypt.genSalt(10);

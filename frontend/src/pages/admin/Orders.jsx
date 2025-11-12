@@ -14,7 +14,8 @@ import {
   DollarSign,
   Edit2,
   Save,
-  X
+  X,
+  Tag
 } from 'lucide-react';
 import { getAllOrders, updateOrderStatus } from '../../api/orderApi';
 
@@ -259,7 +260,12 @@ export default function Orders() {
                         <DollarSign className="w-4 h-4 text-gray-400" />
                         <div>
                           <p className="text-xs text-gray-500">Payment</p>
-                          <p className="font-medium text-gray-800">{order.paymentMethod} - ${order.totalPrice.toFixed(2)}</p>
+                          <p className="font-medium text-gray-800">
+                            {order.paymentMethod} - ${order.totalPrice.toFixed(2)}
+                            {order.appliedPromo && (
+                              <span className="text-xs text-green-600 ml-1">({order.appliedPromo})</span>
+                            )}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -310,10 +316,42 @@ export default function Orders() {
                       ))}
                     </div>
                     
+                    {/* Price Breakdown */}
                     <div className="mt-4 pt-4 border-t border-gray-200">
-                      <div className="flex justify-between items-center">
-                        <span className="text-lg font-bold text-gray-800">Total Amount</span>
-                        <span className="text-2xl font-bold text-emerald-600">${order.totalPrice.toFixed(2)}</span>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center text-gray-600">
+                          <span>Subtotal</span>
+                          <span>${order.subtotal?.toFixed(2) || '0.00'}</span>
+                        </div>
+                        
+                        {order.tax > 0 && (
+                          <div className="flex justify-between items-center text-gray-600">
+                            <span>Tax</span>
+                            <span>${order.tax.toFixed(2)}</span>
+                          </div>
+                        )}
+                        
+                        {order.deliveryFee > 0 && (
+                          <div className="flex justify-between items-center text-gray-600">
+                            <span>Delivery Fee</span>
+                            <span>${order.deliveryFee.toFixed(2)}</span>
+                          </div>
+                        )}
+                        
+                        {order.discount > 0 && (
+                          <div className="flex justify-between items-center text-green-600">
+                            <span className="flex items-center space-x-1">
+                              <Tag className="w-4 h-4" />
+                              <span>Discount {order.appliedPromo && `(${order.appliedPromo})`}</span>
+                            </span>
+                            <span>-${order.discount.toFixed(2)}</span>
+                          </div>
+                        )}
+                        
+                        <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                          <span className="text-lg font-bold text-gray-800">Total Amount</span>
+                          <span className="text-2xl font-bold text-emerald-600">${order.totalPrice.toFixed(2)}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
