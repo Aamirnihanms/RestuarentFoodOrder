@@ -6,17 +6,25 @@ import HomePage from './pages/Home'
 import FoodDetailPage from './pages/Detail'
 import CartPage from './pages/Cart'
 import AdminPanel from './pages/admin/Admin'
+import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
 
   return (
     <>
         <Routes>
-          <Route path="/" element={<AuthPages />} />
-          <Route path="/home" element={<HomePage />} />
+          <Route path="/authentication" element={<AuthPages />} />
+          <Route path="/" element={<HomePage />} />
           <Route path="/food/:id" element={<FoodDetailPage/>} />
           <Route path="/cart" element={<CartPage/>} />
-          <Route path="/admin" element={<AdminPanel/>} />
+          <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <AdminPanel />
+            </ProtectedRoute>
+          }
+        />
         </Routes>
 
     </>

@@ -11,9 +11,12 @@ import {
   XCircle,
   User,
   MapPin,
-  DollarSign
+  DollarSign,
+  Edit2,
+  Save,
+  X
 } from 'lucide-react';
-import { getAllOrders } from '../../api/orderApi';
+import { getAllOrders, updateOrderStatus } from '../../api/orderApi';
 
 export default function Orders() {
   const [orders, setOrders] = useState([]);
@@ -21,6 +24,11 @@ export default function Orders() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [editingOrderId, setEditingOrderId] = useState(null);
+  const [newStatus, setNewStatus] = useState('');
+  const [updating, setUpdating] = useState(false);
+
+  const statusOptions = ['Pending', 'Confirmed', 'Delivered', 'Cancelled'];
 
   useEffect(() => {
     fetchOrders();
@@ -38,10 +46,40 @@ export default function Orders() {
     }
   };
 
+  const handleStatusUpdate = async (orderId) => {
+    try {
+      setUpdating(true);
+      await updateOrderStatus(orderId, newStatus);
+      
+      // Update local state
+      setOrders(orders.map(order => 
+        order._id === orderId ? { ...order, status: newStatus } : order
+      ));
+      
+      setEditingOrderId(null);
+      setNewStatus('');
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      alert('Failed to update order status');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const startEditing = (order) => {
+    setEditingOrderId(order._id);
+    setNewStatus(order.status);
+  };
+
+  const cancelEditing = () => {
+    setEditingOrderId(null);
+    setNewStatus('');
+  };
+
   const getStatusColor = (status) => {
     switch(status?.toLowerCase()) {
       case 'delivered': return 'bg-green-100 text-green-800';
-      case 'processing': return 'bg-blue-100 text-blue-800';
+      case 'confirmed': return 'bg-blue-100 text-blue-800';
       case 'pending': return 'bg-yellow-100 text-yellow-800';
       case 'cancelled': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
@@ -51,7 +89,7 @@ export default function Orders() {
   const getStatusIcon = (status) => {
     switch(status?.toLowerCase()) {
       case 'delivered': return CheckCircle;
-      case 'processing': return Package;
+      case 'confirmed': return Package;
       case 'pending': return Clock;
       case 'cancelled': return XCircle;
       default: return ShoppingBag;
@@ -113,7 +151,7 @@ export default function Orders() {
             >
               <option value="All">All Status</option>
               <option value="Pending">Pending</option>
-              <option value="Processing">Processing</option>
+              <option value="Confirmed">Confirmed</option>
               <option value="Delivered">Delivered</option>
               <option value="Cancelled">Cancelled</option>
             </select>
@@ -140,6 +178,8 @@ export default function Orders() {
         <div className="grid gap-4">
           {filteredOrders.map((order) => {
             const StatusIcon = getStatusIcon(order.status);
+            const isEditing = editingOrderId === order._id;
+            
             return (
               <div key={order._id} className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-shadow">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
@@ -149,10 +189,50 @@ export default function Orders() {
                       <div>
                         <div className="flex items-center space-x-3">
                           <h3 className="text-lg font-bold text-gray-800">Order #{order._id.slice(-8)}</h3>
-                          <span className={`px-3 py-1 text-xs font-semibold rounded-full flex items-center space-x-1 ${getStatusColor(order.status)}`}>
-                            <StatusIcon className="w-3 h-3" />
-                            <span>{order.status}</span>
-                          </span>
+                          
+                          {/* Status Display/Edit */}
+                          {isEditing ? (
+                            <div className="flex items-center space-x-2">
+                              <select
+                                value={newStatus}
+                                onChange={(e) => setNewStatus(e.target.value)}
+                                className="px-3 py-1 text-xs font-semibold rounded-full border-2 border-emerald-500 focus:outline-none"
+                                disabled={updating}
+                              >
+                                {statusOptions.map(status => (
+                                  <option key={status} value={status}>{status}</option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => handleStatusUpdate(order._id)}
+                                disabled={updating}
+                                className="p-1 bg-emerald-600 text-white rounded-full hover:bg-emerald-700 disabled:opacity-50"
+                              >
+                                <Save className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={cancelEditing}
+                                disabled={updating}
+                                className="p-1 bg-gray-400 text-white rounded-full hover:bg-gray-500 disabled:opacity-50"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center space-x-2">
+                              <span className={`px-3 py-1 text-xs font-semibold rounded-full flex items-center space-x-1 ${getStatusColor(order.status)}`}>
+                                <StatusIcon className="w-3 h-3" />
+                                <span>{order.status}</span>
+                              </span>
+                              <button
+                                onClick={() => startEditing(order)}
+                                className="p-1 text-gray-400 hover:text-emerald-600 transition-colors"
+                                title="Edit status"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                         <p className="text-sm text-gray-500 mt-1">{formatDate(order.createdAt)}</p>
                       </div>

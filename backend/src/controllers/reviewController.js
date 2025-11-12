@@ -38,6 +38,7 @@ export const getReviewAnalytics = async (req, res) => {
         userReviewMap[userId].reviews.push({
           foodId: food._id,
           foodName: food.name,
+          _id:review._id,
           rating: review.rating,
           comment: review.comment,
           createdAt: review.createdAt,

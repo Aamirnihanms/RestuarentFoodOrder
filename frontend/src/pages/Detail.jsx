@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { ChefHat, Clock, Star, Heart, ShoppingCart, Minus, Plus, ArrowLeft, Award, Flame, Users, CheckCircle, Loader } from 'lucide-react';
+import { ChefHat, Clock, Star, Heart, ShoppingCart, Minus, Plus, ArrowLeft, Award, Flame, Users, CheckCircle, Loader, X, LogIn } from 'lucide-react';
 import { getFoodById } from '../api/foodApi';
 import { useParams } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import { addReview } from '../api/reviewApi';
 import ReviewModal from '../components/ReviewModal';
 import { addToCart } from '../api/cartApi';
+import toast from 'react-hot-toast';
 
 export default function FoodDetailPage() {
     const [quantity, setQuantity] = useState(1);
@@ -18,9 +19,10 @@ export default function FoodDetailPage() {
     const [error, setError] = useState(null);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [isAddingToCart, setIsAddingToCart] = useState(false);
-    const mavigate = useNavigate();
+    const navigate = useNavigate();
     const { id } = useParams();
     const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+    const [showAuthModal, setShowAuthModal] = useState(false);
 
     useEffect(() => {
         const fetchFoodDetails = async () => {
@@ -47,12 +49,34 @@ export default function FoodDetailPage() {
             const res = await getFoodById(id);
             setFood(res);
         } catch (err) {
-            console.error('Error submitting review:', err);
+            // console.error('Error submitting review:', err);
             throw err;
         }
     };
 
     const handleAddToCart = async () => {
+        // Check if user is authenticated
+        const token = localStorage.getItem('token');
+        const userStr = localStorage.getItem('user');
+        
+        if (!token || !userStr) {
+            setShowAuthModal(true);
+            return;
+        }
+
+        try {
+            const user = JSON.parse(userStr);
+            if (user.role !== 'user') {
+                setShowAuthModal(true);
+                return;
+            }
+        } catch (err) {
+            // console.error('Error parsing user data:', err);
+            setShowAuthModal(true);
+            return;
+        }
+
+        // Proceed with adding to cart
         try {
             setIsAddingToCart(true);
             
@@ -65,19 +89,18 @@ export default function FoodDetailPage() {
 
             await addToCart(foodData);
             
-            // Show success message (you can add a toast notification here)
-            alert('Item added to cart successfully!');
+            toast.success('Item added to cart successfully!');
             
         } catch (err) {
-            console.error('Error adding to cart:', err);
-            alert('Failed to add item to cart. Please try again.');
+            // console.error('Error adding to cart:', err);
+            toast.error('Failed to add item to cart. Please try again.');
         } finally {
             setIsAddingToCart(false);
         }
     };
 
     const handleBack = () => {
-        mavigate(-1);
+        navigate(-1);
     };
     
     const increaseQuantity = () => setQuantity(prev => prev + 1);
@@ -118,6 +141,69 @@ export default function FoodDetailPage() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50">
+            {/* Auth Modal */}
+            {showAuthModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 relative animate-fadeIn">
+                        <button
+                            onClick={() => setShowAuthModal(false)}
+                            className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
+                        >
+                            <X className="w-6 h-6 text-gray-500" />
+                        </button>
+
+                        <div className="text-center mb-6">
+                            <div className="w-20 h-20 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <LogIn className="w-10 h-10 text-white" />
+                            </div>
+                            <h2 className="text-3xl font-bold text-gray-800 mb-2">Sign In Required</h2>
+                            <p className="text-gray-600 text-lg">
+                                Please sign in to add items to your cart and enjoy our delicious meals!
+                            </p>
+                        </div>
+
+                        <div className="space-y-4 mb-6">
+                            <div className="flex items-start space-x-3 p-4 bg-emerald-50 rounded-xl">
+                                <CheckCircle className="w-6 h-6 text-emerald-600 flex-shrink-0 mt-0.5" />
+                                <div>
+                                    <div className="font-semibold text-gray-800">Track Your Orders</div>
+                                    <div className="text-sm text-gray-600">Keep track of all your food orders</div>
+                                </div>
+                            </div>
+                            <div className="flex items-start space-x-3 p-4 bg-emerald-50 rounded-xl">
+                                <CheckCircle className="w-6 h-6 text-emerald-600 flex-shrink-0 mt-0.5" />
+                                <div>
+                                    <div className="font-semibold text-gray-800">Save Favorites</div>
+                                    <div className="text-sm text-gray-600">Build your personalized menu</div>
+                                </div>
+                            </div>
+                            <div className="flex items-start space-x-3 p-4 bg-emerald-50 rounded-xl">
+                                <CheckCircle className="w-6 h-6 text-emerald-600 flex-shrink-0 mt-0.5" />
+                                <div>
+                                    <div className="font-semibold text-gray-800">Faster Checkout</div>
+                                    <div className="text-sm text-gray-600">Save time with stored information</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <button
+                                onClick={() => navigate('/authentication')}
+                                className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold text-lg hover:shadow-lg transition-all transform hover:scale-105"
+                            >
+                                Sign Up Now
+                            </button>
+                            {/* <button
+                                onClick={() => navigate('/authentication')}
+                                className="w-full py-4 bg-white border-2 border-emerald-500 text-emerald-600 rounded-xl font-bold text-lg hover:bg-emerald-50 transition-all"
+                            >
+                                Already Have an Account? Sign In
+                            </button> */}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Navbar */}
             <nav className="bg-white shadow-md sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -130,7 +216,7 @@ export default function FoodDetailPage() {
                             <ChefHat className="w-6 h-6 text-emerald-600" />
                             <span className="text-xl font-bold text-gray-800">FreshBite</span>
                         </div>
-                        <button className="p-2 hover:bg-emerald-50 rounded-full transition-colors">
+                        <button onClick={() => {navigate('/cart')}} className="p-2 hover:bg-emerald-50 rounded-full transition-colors">
                             <ShoppingCart className="w-6 h-6 text-gray-700" />
                         </button>
                     </div>

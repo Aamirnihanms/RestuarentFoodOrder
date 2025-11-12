@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { ChefHat, ShoppingCart, Trash2, Plus, Minus, ArrowLeft, Tag, MapPin, Clock, CreditCard, Percent, AlertCircle, CheckCircle, Package } from 'lucide-react';
 import { getCart } from '../api/cartApi';
 import { createOrder } from '../api/orderApi';
+import { getSettings, validatePromoCode } from '../api/dashboardApi';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 export default function CartPage() {
   const [cartItems, setCartItems] = useState([]);
@@ -13,16 +15,47 @@ export default function CartPage() {
   const [deliveryType, setDeliveryType] = useState('delivery');
 
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
-const [paymentMethod, setPaymentMethod] = useState('Online');
-const [deliveryAddress, setDeliveryAddress] = useState('');
-const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-const [orderSuccess, setOrderSuccess] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('Online');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState(false);
+
+  // Settings from API
+  const [settings, setSettings] = useState({
+    deliveryFee: 0,
+    taxRate: 0,
+    promos: []
+  });
+  const [loadingPromo, setLoadingPromo] = useState(false);
 
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchCart();
+    fetchInitialData();
   }, []);
+
+  const fetchInitialData = async () => {
+    try {
+      setLoading(true);
+      const [cartData, settingsData] = await Promise.all([
+        getCart(),
+        getSettings()
+      ]);
+      
+      setCartItems(cartData);
+      setSettings({
+        deliveryFee: settingsData.deliveryFee || 0,
+        taxRate: settingsData.taxRate || 0,
+        promos: settingsData.promos || []
+      });
+      setError(null);
+    } catch (err) {
+      setError('Failed to load cart. Please try again.');
+      console.error('Error fetching data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchCart = async () => {
     try {
@@ -32,7 +65,6 @@ const [orderSuccess, setOrderSuccess] = useState(false);
       setError(null);
     } catch (err) {
       setError('Failed to load cart. Please try again.');
-      console.error('Error fetching cart:', err);
     } finally {
       setLoading(false);
     }
@@ -51,77 +83,106 @@ const [orderSuccess, setOrderSuccess] = useState(false);
     setCartItems(items => items.filter(item => item._id !== id));
   };
 
-  const applyPromoCode = () => {
-    if (promoCode.toUpperCase() === 'FRESH20') {
-      setAppliedPromo({ code: 'FRESH20', discount: 20, type: 'percentage' });
-    } else if (promoCode.toUpperCase() === 'SAVE10') {
-      setAppliedPromo({ code: 'SAVE10', discount: 10, type: 'fixed' });
-    } else {
-      alert('Invalid promo code');
+  const applyPromoCode = async () => {
+    if (!promoCode.trim()) {
+      toast.error('Please enter a promo code');
+      return;
+    }
+
+    setLoadingPromo(true);
+    try {
+      const promoData = await validatePromoCode(promoCode);
+      
+      setAppliedPromo({
+        code: promoData.promo.code,
+        discount: promoData.promo.value,
+        type: promoData.promo.type
+      });
+      toast.success(`Promo code "${promoData.promo.code}" applied successfully!`);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Invalid promo code');
+      console.error('Promo code validation error:', error);
+    } finally {
+      setLoadingPromo(false);
     }
   };
 
   const removePromo = () => {
     setAppliedPromo(null);
     setPromoCode('');
+    toast.success('Promo code removed');
   };
 
   const handleCheckoutClick = () => {
-  setShowCheckoutModal(true);
-};
+    setShowCheckoutModal(true);
+  };
 
-const handlePlaceOrder = async () => {
-  if (deliveryType === 'delivery' && !deliveryAddress.trim()) {
-    alert('Please enter delivery address');
-    return;
-  }
-
-  setIsProcessingPayment(true);
-
-
-  setTimeout(async () => {
-    try {
-      console.log(cartItems)
-      const orderPayload = {
-        selectedItems: cartItems.map(item => ({ foodId: item.foodId })),
-        paymentMethod: paymentMethod,
-        deliveryAddress: deliveryType === 'delivery' ? deliveryAddress : 'Pickup from store'
-      };
-
-      const response = await createOrder(orderPayload);
-      setOrderSuccess(true);
-      
-
-      setTimeout(() => {
-        setCartItems([]);
-        setShowCheckoutModal(false);
-        setOrderSuccess(false);
-        setIsProcessingPayment(false);
-        setDeliveryAddress('');
-        navigate('/home');
-      }, 3000);
-
-    } catch (error) {
-      setIsProcessingPayment(false);
-      alert('Order failed. Please try again.');
-      console.error('Order error:', error);
+  const handlePlaceOrder = async () => {
+    if (deliveryType === 'delivery' && !deliveryAddress.trim()) {
+      toast.error('Please enter delivery address');
+      return;
     }
-  }, 2000);
-};
+
+    setIsProcessingPayment(true);
+
+    setTimeout(async () => {
+      try {
+        const orderPayload = {
+          selectedItems: cartItems.map(item => ({ foodId: item.foodId })),
+          paymentMethod: paymentMethod,
+          deliveryAddress: deliveryType === 'delivery' ? deliveryAddress : 'Pickup from store'
+        };
+
+        const response = await createOrder(orderPayload);
+        setOrderSuccess(true);
+
+        setTimeout(() => {
+          setCartItems([]);
+          setShowCheckoutModal(false);
+          setOrderSuccess(false);
+          setIsProcessingPayment(false);
+          setDeliveryAddress('');
+          navigate('/');
+        }, 3000);
+
+      } catch (error) {
+        setIsProcessingPayment(false);
+        toast.error('Order failed. Please try again.');
+        console.error('Order error:', error);
+      }
+    }, 2000);
+  };
+
+  const subtotal = cartItems.reduce(
+  (sum, item) => sum + (Number(item.price) * Number(item.quantity || 0)),
+  0
+);
+
+  const deliveryFee = deliveryType === 'delivery' ? Number(settings.deliveryFee || 0) : 0;
+const tax = subtotal * (Number(settings.taxRate || 0) / 100);
+
+let discount = 0;
+if (appliedPromo) {
+  const discountValue = Number(appliedPromo.discount || 0);
+  discount = appliedPromo.type === 'percentage'
+    ? (subtotal * discountValue / 100)
+    : discountValue;
+}
+
+const total = subtotal + deliveryFee + tax - discount;
 
 
-  const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const deliveryFee = deliveryType === 'delivery' ? 5.99 : 0;
-  const tax = subtotal * 0.08;
-  
-  let discount = 0;
-  if (appliedPromo) {
-    discount = appliedPromo.type === 'percentage' 
-      ? (subtotal * appliedPromo.discount / 100)
-      : appliedPromo.discount;
-  }
-  
-  const total = subtotal + deliveryFee + tax - discount;
+  // Get active promo codes for display
+  const activePromoCodes = settings.promos
+    .filter(promo => promo.isActive)
+    .map(promo => {
+      if (promo.type === 'percentage') {
+        return `${promo.code} (${promo.value}% off)`;
+      } else {
+        return `${promo.code} ($${promo.value} off)`;
+      }
+    })
+    .join(' or ');
 
   if (loading) {
     return (
@@ -141,8 +202,8 @@ const handlePlaceOrder = async () => {
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <p className="text-gray-800 font-bold text-xl mb-2">Oops! Something went wrong</p>
           <p className="text-gray-600 mb-4">{error}</p>
-          <button 
-            onClick={fetchCart}
+          <button
+            onClick={fetchInitialData}
             className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full font-semibold hover:shadow-lg transition-all"
           >
             Try Again
@@ -158,7 +219,7 @@ const handlePlaceOrder = async () => {
       <nav className="bg-white shadow-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <button onClick={()=>{(navigate('/home'))}} className="flex items-center space-x-2 text-gray-700 hover:text-emerald-600 transition-colors">
+            <button onClick={() => navigate('/')} className="flex items-center space-x-2 text-gray-700 hover:text-emerald-600 transition-colors">
               <ArrowLeft className="w-5 h-5" />
               <span className="font-semibold">Continue Shopping</span>
             </button>
@@ -189,7 +250,10 @@ const handlePlaceOrder = async () => {
                   <ShoppingCart className="w-24 h-24 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-2xl font-bold text-gray-800 mb-2">Your cart is empty</h3>
                   <p className="text-gray-600 mb-6">Add some delicious items to get started!</p>
-                  <button className="px-8 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full font-semibold hover:shadow-lg transition-all">
+                  <button 
+                    onClick={() => navigate('/')}
+                    className="px-8 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full font-semibold hover:shadow-lg transition-all"
+                  >
                     Browse Menu
                   </button>
                 </div>
@@ -217,7 +281,7 @@ const handlePlaceOrder = async () => {
                             <Trash2 className="w-5 h-5 text-red-500" />
                           </button>
                         </div>
-                        
+
                         <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
                           <span className="flex items-center">
                             <Package className="w-4 h-4 mr-1" />
@@ -266,23 +330,21 @@ const handlePlaceOrder = async () => {
                 <div className="grid md:grid-cols-2 gap-4">
                   <button
                     onClick={() => setDeliveryType('delivery')}
-                    className={`p-4 rounded-xl border-2 transition-all ${
-                      deliveryType === 'delivery'
+                    className={`p-4 rounded-xl border-2 transition-all ${deliveryType === 'delivery'
                         ? 'border-emerald-500 bg-gradient-to-r from-emerald-50 to-teal-50'
                         : 'border-gray-200 hover:border-emerald-300'
-                    }`}
+                      }`}
                   >
                     <MapPin className={`w-6 h-6 mb-2 ${deliveryType === 'delivery' ? 'text-emerald-600' : 'text-gray-500'}`} />
                     <div className="font-bold text-gray-800">Delivery</div>
-                    <div className="text-sm text-gray-600">35-45 min • $5.99</div>
+                    <div className="text-sm text-gray-600">35-45 min • ${settings.deliveryFee.toFixed(2)}</div>
                   </button>
                   <button
                     onClick={() => setDeliveryType('pickup')}
-                    className={`p-4 rounded-xl border-2 transition-all ${
-                      deliveryType === 'pickup'
+                    className={`p-4 rounded-xl border-2 transition-all ${deliveryType === 'pickup'
                         ? 'border-emerald-500 bg-gradient-to-r from-emerald-50 to-teal-50'
                         : 'border-gray-200 hover:border-emerald-300'
-                    }`}
+                      }`}
                   >
                     <Package className={`w-6 h-6 mb-2 ${deliveryType === 'pickup' ? 'text-emerald-600' : 'text-gray-500'}`} />
                     <div className="font-bold text-gray-800">Pickup</div>
@@ -316,26 +378,29 @@ const handlePlaceOrder = async () => {
                       </button>
                     </div>
                   ) : (
-                    <div className="flex space-x-2">
+                    <div className="flex gap-2">
                       <input
                         type="text"
                         value={promoCode}
                         onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
                         placeholder="Enter code"
-                        className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none"
+                        className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none text-sm"
                       />
                       <button
                         onClick={applyPromoCode}
-                        className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+                        disabled={loadingPromo}
+                        className="px-5 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all whitespace-nowrap flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Apply
+                        {loadingPromo ? 'Checking...' : 'Apply'}
                       </button>
                     </div>
                   )}
-                  <div className="mt-2 flex items-start space-x-2 text-xs text-gray-600">
-                    <Tag className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                    <span>Try: FRESH20 (20% off) or SAVE10 ($10 off)</span>
-                  </div>
+                  {activePromoCodes && (
+                    <div className="mt-2 flex items-start space-x-2 text-xs text-gray-600">
+                      <Tag className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <span>Try: {activePromoCodes}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Price Breakdown */}
@@ -351,7 +416,7 @@ const handlePlaceOrder = async () => {
                     </span>
                   </div>
                   <div className="flex justify-between text-gray-700">
-                    <span>Tax (8%)</span>
+                    <span>Tax ({settings.taxRate}%)</span>
                     <span className="font-semibold">${tax.toFixed(2)}</span>
                   </div>
                   {discount > 0 && (
@@ -382,13 +447,13 @@ const handlePlaceOrder = async () => {
                 </div>
 
                 {/* Checkout Button */}
-<button 
-  onClick={handleCheckoutClick}
-  className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all transform hover:scale-105 flex items-center justify-center space-x-2"
->
-  <CreditCard className="w-6 h-6" />
-  <span>Proceed to Checkout</span>
-</button>
+                <button
+                  onClick={handleCheckoutClick}
+                  className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all transform hover:scale-105 flex items-center justify-center space-x-2"
+                >
+                  <CreditCard className="w-6 h-6" />
+                  <span>Proceed to Checkout</span>
+                </button>
 
                 {/* Security Note */}
                 <div className="mt-4 flex items-center justify-center space-x-2 text-xs text-gray-500">
@@ -399,146 +464,143 @@ const handlePlaceOrder = async () => {
             </div>
           )}
         </div>
+
         {/* Checkout Modal */}
-{showCheckoutModal && (
-  <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 relative">
-      {!isProcessingPayment && !orderSuccess && (
-        <>
-          <button
-            onClick={() => setShowCheckoutModal(false)}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-          >
-            ✕
-          </button>
+        {showCheckoutModal && (
+          <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 relative">
+              {!isProcessingPayment && !orderSuccess && (
+                <>
+                  <button
+                    onClick={() => setShowCheckoutModal(false)}
+                    className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                  >
+                    ✕
+                  </button>
 
-          <h2 className="text-3xl font-bold text-gray-800 mb-6">Complete Your Order</h2>
+                  <h2 className="text-3xl font-bold text-gray-800 mb-6">Complete Your Order</h2>
 
-          {/* Delivery Address */}
-          {deliveryType === 'delivery' && (
-            <div className="mb-6">
-              <label className="block text-sm font-bold text-gray-700 mb-2">
-                <MapPin className="w-4 h-4 inline mr-1" />
-                Delivery Address
-              </label>
-              <textarea
-                value={deliveryAddress}
-                onChange={(e) => setDeliveryAddress(e.target.value)}
-                placeholder="Enter your complete delivery address"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none resize-none"
-                rows="3"
-              />
-            </div>
-          )}
+                  {/* Delivery Address */}
+                  {deliveryType === 'delivery' && (
+                    <div className="mb-6">
+                      <label className="block text-sm font-bold text-gray-700 mb-2">
+                        <MapPin className="w-4 h-4 inline mr-1" />
+                        Delivery Address
+                      </label>
+                      <textarea
+                        value={deliveryAddress}
+                        onChange={(e) => setDeliveryAddress(e.target.value)}
+                        placeholder="Enter your complete delivery address"
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:outline-none resize-none"
+                        rows="3"
+                      />
+                    </div>
+                  )}
 
-          {/* Payment Method */}
-          <div className="mb-6">
-            <label className="block text-sm font-bold text-gray-700 mb-3">
-              <CreditCard className="w-4 h-4 inline mr-1" />
-              Payment Method
-            </label>
-            <div className="space-y-3">
-              <button
-                onClick={() => setPaymentMethod('Online')}
-                className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
-                  paymentMethod === 'Online'
-                    ? 'border-emerald-500 bg-gradient-to-r from-emerald-50 to-teal-50'
-                    : 'border-gray-200 hover:border-emerald-300'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-gray-800">Online Payment</div>
-                    <div className="text-sm text-gray-600">Pay via Card/UPI/Wallet</div>
+                  {/* Payment Method */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-bold text-gray-700 mb-3">
+                      <CreditCard className="w-4 h-4 inline mr-1" />
+                      Payment Method
+                    </label>
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => setPaymentMethod('Online')}
+                        className={`w-full p-4 rounded-xl border-2 transition-all text-left ${paymentMethod === 'Online'
+                            ? 'border-emerald-500 bg-gradient-to-r from-emerald-50 to-teal-50'
+                            : 'border-gray-200 hover:border-emerald-300'
+                          }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-bold text-gray-800">Online Payment</div>
+                            <div className="text-sm text-gray-600">Pay via Card/UPI/Wallet</div>
+                          </div>
+                          <div className={`w-5 h-5 rounded-full border-2 ${paymentMethod === 'Online' ? 'border-emerald-500 bg-emerald-500' : 'border-gray-300'
+                            }`}>
+                            {paymentMethod === 'Online' && (
+                              <CheckCircle className="w-4 h-4 text-white" />
+                            )}
+                          </div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => setPaymentMethod('COD')}
+                        className={`w-full p-4 rounded-xl border-2 transition-all text-left ${paymentMethod === 'COD'
+                            ? 'border-emerald-500 bg-gradient-to-r from-emerald-50 to-teal-50'
+                            : 'border-gray-200 hover:border-emerald-300'
+                          }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-bold text-gray-800">Cash on Delivery</div>
+                            <div className="text-sm text-gray-600">Pay when you receive</div>
+                          </div>
+                          <div className={`w-5 h-5 rounded-full border-2 ${paymentMethod === 'COD' ? 'border-emerald-500 bg-emerald-500' : 'border-gray-300'
+                            }`}>
+                            {paymentMethod === 'COD' && (
+                              <CheckCircle className="w-4 h-4 text-white" />
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    </div>
                   </div>
-                  <div className={`w-5 h-5 rounded-full border-2 ${
-                    paymentMethod === 'Online' ? 'border-emerald-500 bg-emerald-500' : 'border-gray-300'
-                  }`}>
-                    {paymentMethod === 'Online' && (
-                      <CheckCircle className="w-4 h-4 text-white" />
-                    )}
+
+                  {/* Order Summary */}
+                  <div className="mb-6 p-4 bg-gray-50 rounded-xl">
+                    <div className="flex justify-between mb-2">
+                      <span className="text-gray-600">Total Amount</span>
+                      <span className="font-bold text-2xl text-emerald-600">${total.toFixed(2)}</span>
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {cartItems.length} items • {deliveryType === 'delivery' ? 'Delivery' : 'Pickup'}
+                    </div>
+                  </div>
+
+                  {/* Place Order Button */}
+                  <button
+                    onClick={handlePlaceOrder}
+                    className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all"
+                  >
+                    Place Order
+                  </button>
+                </>
+              )}
+
+              {/* Processing Payment Animation */}
+              {isProcessingPayment && !orderSuccess && (
+                <div className="text-center py-8">
+                  <div className="w-20 h-20 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
+                  <h3 className="text-2xl font-bold text-gray-800 mb-2">Processing Payment</h3>
+                  <p className="text-gray-600">Please wait while we process your order...</p>
+                  <div className="mt-6 flex justify-center space-x-2">
+                    <div className="w-3 h-3 bg-emerald-500 rounded-full animate-bounce"></div>
+                    <div className="w-3 h-3 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-3 h-3 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                   </div>
                 </div>
-              </button>
+              )}
 
-              <button
-                onClick={() => setPaymentMethod('COD')}
-                className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
-                  paymentMethod === 'COD'
-                    ? 'border-emerald-500 bg-gradient-to-r from-emerald-50 to-teal-50'
-                    : 'border-gray-200 hover:border-emerald-300'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-gray-800">Cash on Delivery</div>
-                    <div className="text-sm text-gray-600">Pay when you receive</div>
+              {/* Success Animation */}
+              {orderSuccess && (
+                <div className="text-center py-8">
+                  <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
+                    <CheckCircle className="w-12 h-12 text-emerald-600" />
                   </div>
-                  <div className={`w-5 h-5 rounded-full border-2 ${
-                    paymentMethod === 'COD' ? 'border-emerald-500 bg-emerald-500' : 'border-gray-300'
-                  }`}>
-                    {paymentMethod === 'COD' && (
-                      <CheckCircle className="w-4 h-4 text-white" />
-                    )}
+                  <h3 className="text-2xl font-bold text-gray-800 mb-2">Order Placed Successfully!</h3>
+                  <p className="text-gray-600 mb-4">Thank you for your order</p>
+                  <div className="bg-emerald-50 rounded-xl p-4">
+                    <p className="text-sm text-emerald-700 font-semibold">
+                      Estimated {deliveryType === 'delivery' ? 'delivery' : 'pickup'} time: {deliveryType === 'delivery' ? '35-45 min' : '20-25 min'}
+                    </p>
                   </div>
                 </div>
-              </button>
+              )}
             </div>
           </div>
-
-          {/* Order Summary */}
-          <div className="mb-6 p-4 bg-gray-50 rounded-xl">
-            <div className="flex justify-between mb-2">
-              <span className="text-gray-600">Total Amount</span>
-              <span className="font-bold text-2xl text-emerald-600">${total.toFixed(2)}</span>
-            </div>
-            <div className="text-sm text-gray-500">
-              {cartItems.length} items • {deliveryType === 'delivery' ? 'Delivery' : 'Pickup'}
-            </div>
-          </div>
-
-          {/* Place Order Button */}
-          <button
-            onClick={handlePlaceOrder}
-            className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all"
-          >
-            Place Order
-          </button>
-        </>
-      )}
-
-      {/* Processing Payment Animation */}
-      {isProcessingPayment && !orderSuccess && (
-        <div className="text-center py-8">
-          <div className="w-20 h-20 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
-          <h3 className="text-2xl font-bold text-gray-800 mb-2">Processing Payment</h3>
-          <p className="text-gray-600">Please wait while we process your order...</p>
-          <div className="mt-6 flex justify-center space-x-2">
-            <div className="w-3 h-3 bg-emerald-500 rounded-full animate-bounce"></div>
-            <div className="w-3 h-3 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-            <div className="w-3 h-3 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-          </div>
-        </div>
-      )}
-
-      {/* Success Animation */}
-      {orderSuccess && (
-        <div className="text-center py-8">
-          <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
-            <CheckCircle className="w-12 h-12 text-emerald-600" />
-          </div>
-          <h3 className="text-2xl font-bold text-gray-800 mb-2">Order Placed Successfully!</h3>
-          <p className="text-gray-600 mb-4">Thank you for your order</p>
-          <div className="bg-emerald-50 rounded-xl p-4">
-            <p className="text-sm text-emerald-700 font-semibold">
-              Estimated {deliveryType === 'delivery' ? 'delivery' : 'pickup'} time: {deliveryType === 'delivery' ? '35-45 min' : '20-25 min'}
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
-  </div>
-)}
+        )}
       </div>
     </div>
   );

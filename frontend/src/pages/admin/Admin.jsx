@@ -28,6 +28,8 @@ import Foods from './Foods';
 import Customers from './Customers';
 import Reviews from './Review';
 import Logs from './Log';
+import SettingsData from './Settings';
+import { useNavigate } from 'react-router-dom';
 
 export default function AdminPanel() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -35,6 +37,7 @@ export default function AdminPanel() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -53,6 +56,13 @@ export default function AdminPanel() {
       fetchDashboardData();
     }
   }, [activeTab]);
+
+
+  const handleLogout = () => {
+    // Clear any authentication tokens or user data here
+    localStorage.clear();
+    navigate('/');
+  }
 
   const menuItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -211,10 +221,10 @@ export default function AdminPanel() {
                     Settings
                   </a>
                   <hr className="my-2" />
-                  <a href="#" className="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-gray-50">
+                  <button onClick={handleLogout} className="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-gray-50">
                     <LogOut className="w-4 h-4 mr-2" />
                     Logout
-                  </a>
+                  </button>
                 </div>
               )}
             </div>
@@ -316,6 +326,7 @@ export default function AdminPanel() {
           {activeTab === 'customers' && <Customers />}
           {activeTab === 'reviews' && <Reviews />}
           {activeTab === 'reports' && <Logs />}
+          {activeTab === 'settings' && <SettingsData />}
           {/* {activeTab !== 'dashboard' && (
             <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
               <div className="inline-block p-4 bg-emerald-100 rounded-full mb-4">

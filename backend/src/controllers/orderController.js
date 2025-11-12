@@ -175,14 +175,14 @@ export const getAllOrders = async (req, res) => {
       .populate("user", "name email")
       .populate("items.foodId");
 
-    await createLog({
-      user: req.user._id,
-      action: "Admin View All Orders",
-      description: `Admin viewed all orders — ${orders.length} total`,
-      ipAddress: req.ip,
-      method: req.method,
-      endpoint: req.originalUrl,
-    });
+    // await createLog({
+    //   user: req.user._id,
+    //   action: "Admin View All Orders",
+    //   description: `Admin viewed all orders — ${orders.length} total`,
+    //   ipAddress: req.ip,
+    //   method: req.method,
+    //   endpoint: req.originalUrl,
+    // });
 
     res.json(orders);
   } catch (error) {

@@ -35,7 +35,7 @@ const orderSchema = new mongoose.Schema(
       enum: ["COD", "Online"],
       default: "COD",
     },
-    deliveryAddress: { type: String, required: true }, // ✅ make required
+    deliveryAddress: { type: String, required: true },
   },
   { timestamps: true }
 );

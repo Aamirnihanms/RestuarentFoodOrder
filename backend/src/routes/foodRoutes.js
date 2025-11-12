@@ -6,6 +6,7 @@ import {
   deleteFood,
   addFoodReview,
   getFoodById,
+  deleteFoodReview,
 } from "../controllers/foodController.js";
 import protect , {adminOnly} from "../middlewares/authMiddlewares.js";
 
@@ -20,5 +21,6 @@ router.get("/:id", getFoodById);
 router.put("/:id", protect, adminOnly, updateFood);
 router.delete("/:id", protect, adminOnly, deleteFood);
 router.post("/:id/review", protect, addFoodReview);
+router.delete("/:foodId/review/:reviewId", protect,adminOnly, deleteFoodReview);
 
 export default router;

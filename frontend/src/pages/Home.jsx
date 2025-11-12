@@ -14,6 +14,7 @@ export default function Homepage() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
+  
 
   useEffect(() => {
     loadFoods();
@@ -74,7 +75,7 @@ export default function Homepage() {
                 <button className="px-8 py-4 bg-white text-emerald-600 rounded-full font-bold text-lg hover:bg-emerald-50 transform hover:scale-105 transition-all shadow-xl">
                   Order Now
                 </button>
-                <button className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-full font-bold text-lg hover:bg-white/10 transition-all">
+                <button  className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-full font-bold text-lg hover:bg-white/10 transition-all">
                   View Menu
                 </button>
               </div>

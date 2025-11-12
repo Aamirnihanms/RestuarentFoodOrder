@@ -1,10 +1,31 @@
 import React, { useState } from 'react';
 import { ChefHat, ShoppingCart, User, Menu, X, Search, Home, UtensilsCrossed, Phone, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
-export default function Navbar({ cartCount = 0, isAuthenticated = false, onLogout }) {
+import { AuthContext } from '../context/AuthContext';
+import { useContext } from 'react';
+export default function Navbar({ cartCount = 0, isAuthenticated = false }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const navigate = useNavigate();   
+  const navigate = useNavigate();
+
+    const { logout } = useContext(AuthContext);
+  
+  // Check if user is authenticated and has 'user' role
+  const checkUserAuth = () => {
+    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user');
+    
+    if (token && userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        return user.role === 'user';
+      } catch (error) {
+        return false;
+      }
+    }
+    return false;
+  };
+  
+  const isUserAuthenticated = checkUserAuth();
 
   return (
     <nav className="bg-white shadow-md sticky top-0 z-50">
@@ -46,32 +67,34 @@ export default function Navbar({ cartCount = 0, isAuthenticated = false, onLogou
               <Search className="w-5 h-5" />
             </button>
 
-            {/* Cart */}
-            <button onClick={()=>{(navigate("/cart"))}} className="relative p-2 text-gray-600 hover:text-emerald-500 hover:bg-emerald-50 rounded-full transition-all">
-              <ShoppingCart className="w-5 h-5" />
-              {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                  {cartCount}
-                </span>
-              )}
-            </button>
+            {/* Cart - Only show if user is authenticated with 'user' role */}
+            {isUserAuthenticated && (
+              <button onClick={() => { navigate("/cart") }} className="relative p-2 text-gray-600 hover:text-emerald-500 hover:bg-emerald-50 rounded-full transition-all">
+                <ShoppingCart className="w-5 h-5" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {cartCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* User Profile / Auth */}
-            {isAuthenticated ? (
+            {isUserAuthenticated ? (
               <div className="hidden md:flex items-center space-x-2">
                 <button className="flex items-center space-x-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-full hover:bg-emerald-100 transition-all">
                   <User className="w-5 h-5" />
                   <span className="font-medium">Profile</span>
                 </button>
                 <button 
-                  onClick={onLogout}
+                  onClick={logout}
                   className="p-2 text-gray-600 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
                 >
                   <LogOut className="w-5 h-5" />
                 </button>
               </div>
             ) : (
-              <button className="hidden md:block px-6 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full font-semibold hover:from-emerald-600 hover:to-teal-600 transform hover:scale-105 transition-all shadow-md">
+              <button onClick={() => { navigate('/authentication') }} className="hidden md:block px-6 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full font-semibold hover:from-emerald-600 hover:to-teal-600 transform hover:scale-105 transition-all shadow-md">
                 Sign In
               </button>
             )}
@@ -107,7 +130,7 @@ export default function Navbar({ cartCount = 0, isAuthenticated = false, onLogou
               <span className="font-medium">Contact</span>
             </a>
             <div className="pt-3 border-t border-gray-100">
-              {isAuthenticated ? (
+              {isUserAuthenticated ? (
                 <>
                   <button className="w-full flex items-center space-x-2 px-4 py-2 text-emerald-600 bg-emerald-50 rounded-lg font-medium mb-2">
                     <User className="w-5 h-5" />
@@ -122,7 +145,7 @@ export default function Navbar({ cartCount = 0, isAuthenticated = false, onLogou
                   </button>
                 </>
               ) : (
-                <button className="w-full px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg font-semibold">
+                <button onClick={() => { navigate('/authentication') }} className="w-full px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg font-semibold">
                   Sign In
                 </button>
               )}

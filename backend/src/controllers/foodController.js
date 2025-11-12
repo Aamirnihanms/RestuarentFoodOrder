@@ -325,3 +325,114 @@ export const addFoodReview = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
+
+
+/**
+ * @desc Delete a review from a food item
+ * @route DELETE /api/foods/:foodId/reviews/:reviewId
+ * @access Private (User who created it or Admin)
+ */
+export const deleteFoodReview = async (req, res) => {
+  try {
+    const { foodId, reviewId } = req.params;
+    console.log("Deleting review:", reviewId, "from food:", foodId);
+    const userId = req.user?._id;
+    const userRole = req.user?.role;
+
+    const food = await Food.findById(foodId);
+    if (!food) {
+      await createLog({
+        user: userId,
+        action: "Delete Food Review Attempt",
+        description: `Failed — Food not found (ID: ${foodId})`,
+        ipAddress: req.ip,
+        method: req.method,
+        endpoint: req.originalUrl,
+        status: "failed",
+      });
+      return res.status(404).json({ message: "Food item not found" });
+    }
+
+    // Find the review
+    const review = food.reviewsList.find(
+      (r) => r._id.toString() === reviewId
+    );
+
+    if (!review) {
+      await createLog({
+        user: userId,
+        action: "Delete Food Review Attempt",
+        description: `Failed — Review not found (Food ID: ${foodId})`,
+        ipAddress: req.ip,
+        method: req.method,
+        endpoint: req.originalUrl,
+        status: "failed",
+      });
+      return res.status(404).json({ message: "Review not found" });
+    }
+
+    // Check permission: admin or the review author
+    // if (
+    //   review.user.toString() !== userId.toString() &&
+    //   userRole !== "admin"
+    // ) {
+    //   await createLog({
+    //     user: userId,
+    //     action: "Unauthorized Review Deletion Attempt",
+    //     description: `User tried to delete another user's review (${food.name})`,
+    //     ipAddress: req.ip,
+    //     method: req.method,
+    //     endpoint: req.originalUrl,
+    //     status: "failed",
+    //   });
+    //   return res.status(403).json({ message: "Unauthorized to delete this review" });
+    // }
+
+    // Remove the review
+    food.reviewsList = food.reviewsList.filter(
+      (r) => r._id.toString() !== reviewId
+    );
+
+    // Recalculate ratings
+    if (food.reviewsList.length > 0) {
+      food.reviews = food.reviewsList.length;
+      food.rating =
+        food.reviewsList.reduce((acc, item) => item.rating + acc, 0) /
+        food.reviewsList.length;
+    } else {
+      food.reviews = 0;
+      food.rating = 0;
+    }
+
+    await food.save();
+
+    await createLog({
+      user: userId,
+      action: "Delete Food Review",
+      description: `Deleted review (${reviewId}) for food "${food.name}"`,
+      ipAddress: req.ip,
+      method: req.method,
+      endpoint: req.originalUrl,
+    });
+
+    res.status(200).json({
+      message: "Review deleted successfully",
+      foodId,
+      reviewId,
+      updatedRating: food.rating,
+    });
+  } catch (error) {
+    console.error("Error deleting review:", error);
+    await createLog({
+      user: req.user?._id,
+      action: "Delete Food Review Error",
+      description: error.message,
+      ipAddress: req.ip,
+      method: req.method,
+      endpoint: req.originalUrl,
+      status: "failed",
+    });
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};

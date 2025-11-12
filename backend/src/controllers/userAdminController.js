@@ -9,7 +9,7 @@ import { createLog } from "../utils/logger.js"; // ✅ Import logger utility
 export const getAllUsers = async (req, res) => {
   try {
     // 👇 Fetch only non-admin users & non-deleted users
-    const users = await User.find({ role: { $ne: "admin" }, isDeleted: false })
+    const users = await User.find({ role: { $ne: "admin" } })
       .select("-password")
       .sort({ createdAt: -1 });
 

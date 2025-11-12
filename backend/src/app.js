@@ -9,6 +9,7 @@ import dashboardRoutes from "./routes/dashboardRoutes.js";
 import adminUserRoutes from "./routes/adminUserRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
 import logRoutes from "./routes/logRoutes.js";
+import settingsRoute from "./routes/settingsRoute.js";
 import cors from "cors";
 
 
@@ -29,6 +30,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/admin/users", adminUserRoutes);
 app.use("/api/admin/review", reviewRoutes);
 app.use("/api/admin/logs", logRoutes);
+app.use("/api/settings", settingsRoute);
 
 
 

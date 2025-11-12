@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect } from "react";
 import { loginUser, registerUser } from "../api/userApi";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 
 export const AuthContext = createContext();
 
@@ -26,7 +27,8 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       setUser(data.user);
-      navigate("/home");
+      navigate("/");
+      toast.success("Registration successful!");
     } catch (error) {
       throw error.response?.data?.message || "Registration failed";
     }
@@ -45,7 +47,8 @@ const login = async (email, password) => {
     if (data.user.role === "admin") {
       navigate("/admin");
     } else {
-      navigate("/home");
+      navigate("/");
+      toast.success("Login successful!");
     }
 
   } catch (error) {

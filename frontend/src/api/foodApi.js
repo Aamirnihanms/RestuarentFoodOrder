@@ -20,7 +20,7 @@ export const addFood = async (foodData) => {
 
 // ✅ Admin: Edit new food
 export const editFood = async (id,foodData) => {
-  const res = await axios.post(`/foods/${id}`, foodData);
+  const res = await axios.put(`/foods/${id}`, foodData);
   return res.data;
 };
 

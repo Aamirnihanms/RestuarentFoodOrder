@@ -15,9 +15,11 @@ import {
   MapPin,
   Code,
   Calendar,
-  X
+  X,
+  Trash2
 } from 'lucide-react';
-import { getLogData } from '../../api/dashboardApi';
+import { getLogData, deleteLogData } from '../../api/dashboardApi';
+import toast from 'react-hot-toast';
 
 export default function Logs() {
   const [logs, setLogs] = useState([]);
@@ -31,6 +33,8 @@ export default function Logs() {
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const itemsPerPage = 20;
 
   useEffect(() => {
@@ -46,6 +50,21 @@ export default function Logs() {
       console.error('Error fetching logs:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteAllLogs = async () => {
+    try {
+      setDeleting(true);
+      await deleteLogData();
+      setLogs([]);
+      setShowDeleteModal(false);
+      toast.success('All logs have been deleted successfully.');
+    } catch (error) {
+      // console.error('Error deleting logs:', error);
+      toast.error('Failed to delete logs. Please try again.');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -216,6 +235,14 @@ export default function Logs() {
           >
             <Download className="w-5 h-5" />
             <span>Export CSV</span>
+          </button>
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            disabled={logs.length === 0}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Trash2 className="w-5 h-5" />
+            <span>Delete All</span>
           </button>
         </div>
       </div>
@@ -536,6 +563,47 @@ export default function Logs() {
           </>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-center w-12 h-12 bg-red-100 rounded-full mx-auto mb-4">
+              <AlertCircle className="w-6 h-6 text-red-600" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-800 text-center mb-2">Delete All Logs?</h3>
+            <p className="text-gray-600 text-center mb-6">
+              Are you sure you want to delete all logs? This action cannot be undone and all {logs.length} log entries will be permanently removed.
+            </p>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAllLogs}
+                disabled={deleting}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50"
+              >
+                {deleting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete All</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Log Detail Modal */}
       {selectedLog && (
