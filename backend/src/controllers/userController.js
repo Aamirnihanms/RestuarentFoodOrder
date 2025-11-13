@@ -122,3 +122,58 @@ export const loginUser = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+
+
+// ------------------------ ADMIN: CREATE EMPLOYEE ------------------------
+export const createEmployee = async (req, res) => {
+  const { name, email, password } = req.body;
+
+  try {
+    // Check if user exists
+    const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+    if (existingUser) {
+      return res.status(400).json({ message: "Employee with this email already exists" });
+    }
+
+    // Create employee with forced role = employee
+    const user = await User.create({
+      name,
+      email: email.toLowerCase().trim(),
+      password,
+      role: "employee"
+    });
+
+    await createLog({
+      user: req.user._id, // admin
+      action: "Create Employee",
+      description: `Admin created employee: ${user.email}`,
+      ipAddress: req.ip,
+      method: req.method,
+      endpoint: req.originalUrl,
+    });
+
+    res.status(201).json({
+      message: "Employee created successfully",
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    });
+
+  } catch (error) {
+    await createLog({
+      user: req.user?._id,
+      action: "Create Employee Error",
+      description: error.message,
+      ipAddress: req.ip,
+      method: req.method,
+      endpoint: req.originalUrl,
+      status: "failed",
+    });
+
+    res.status(500).json({ message: error.message });
+  }
+};

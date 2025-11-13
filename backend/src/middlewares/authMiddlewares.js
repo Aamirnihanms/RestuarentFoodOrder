@@ -39,5 +39,11 @@ const adminOnly = (req, res, next) => {
   }
 };
 
+ const employeeOnly = (req, res, next) => {
+  if (req.user && req.user.role === "employee") return next();
+  return res.status(403).json({ message: "Access denied: Employees only" });
+};
+
+
 export default protect;
-export { adminOnly };
+export { adminOnly , employeeOnly};

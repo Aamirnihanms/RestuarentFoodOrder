@@ -8,6 +8,7 @@ import CartPage from './pages/Cart'
 import AdminPanel from './pages/admin/Admin'
 import ProtectedRoute from './components/ProtectedRoute'
 import ProfilePage from './pages/Profile'
+import EmployeeOrders from './pages/employee/EmployeeHome'
 
 function App() {
 
@@ -19,6 +20,7 @@ function App() {
           <Route path="/food/:id" element={<FoodDetailPage/>} />
           <Route path="/cart" element={<CartPage/>} />
           <Route path="/profile" element={<ProfilePage/>}/>
+          <Route path="/employee" element={<EmployeeOrders/>}/>
           <Route
           path="/admin"
           element={

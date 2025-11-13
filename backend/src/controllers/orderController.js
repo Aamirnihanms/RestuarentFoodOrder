@@ -3,6 +3,34 @@ import User from "../models/user.js";
 import Food from "../models/food.js";
 import { createLog } from "../utils/logger.js"; // ✅ import logger utility
 
+
+// =======================
+//  ROUND ROBIN EMPLOYEE ASSIGNMENT
+// =======================
+
+let lastAssignedIndex = 0;
+
+async function assignEmployeeToOrder(order) {
+  const employees = await User.find({ role: "employee", isActive: true });
+
+  if (!employees.length) return null;
+
+  const employee = employees[lastAssignedIndex % employees.length];
+  lastAssignedIndex++;
+
+  order.assignedTo = employee._id;
+  await order.save();
+
+  await createLog({
+    user: employee._id,
+    action: "Order Assigned",
+    description: `Order ${order._id} assigned to ${employee.name}`,
+  });
+
+  return employee;
+}
+
+
 /**
  * @desc Create new order from user's cart
  * @route POST /api/orders
@@ -11,25 +39,21 @@ import { createLog } from "../utils/logger.js"; // ✅ import logger utility
 export const createOrder = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
+
     const { selectedItems = [], paymentMethod, deliveryAddress, pricing, appliedPromo } = req.body;
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!selectedItems.length) return res.status(400).json({ message: "No items provided" });
 
-    if (!selectedItems.length) {
-      return res.status(400).json({ message: "No items provided" });
-    }
-
-    // ✅ Rebuild order items safely
+    // Build Items Array
     const orderItems = [];
+
     for (const sel of selectedItems) {
       const food = await Food.findById(sel.foodId);
-      if (!food) continue; // skip invalid food IDs
+      if (!food) continue;
 
-      const quantity = sel.quantity || 1;
       const price = sel.price || food.price;
-      const totalItemPrice = price * quantity;
+      const quantity = sel.quantity || 1;
 
       orderItems.push({
         foodId: food._id,
@@ -39,19 +63,16 @@ export const createOrder = async (req, res) => {
         size: sel.size || "Regular",
         price,
         quantity,
-        totalItemPrice,
+        totalItemPrice: price * quantity,
       });
     }
 
-    if (orderItems.length === 0) {
+    if (!orderItems.length) {
       return res.status(400).json({ message: "No valid items to order" });
     }
 
-    // ✅ Calculate totals (fallback to server-side calculation for safety)
-    const calculatedSubtotal = orderItems.reduce(
-      (sum, item) => sum + item.totalItemPrice,
-      0
-    );
+    // Pricing Calculation
+    const calculatedSubtotal = orderItems.reduce((sum, item) => sum + item.totalItemPrice, 0);
 
     const subtotal = pricing?.subtotal || calculatedSubtotal;
     const tax = pricing?.tax || 0;
@@ -59,6 +80,7 @@ export const createOrder = async (req, res) => {
     const discount = pricing?.discount || 0;
     const totalPrice = pricing?.total || subtotal + tax + deliveryFee - discount;
 
+    // Create Order
     const order = await Order.create({
       user: user._id,
       userName: user.name,
@@ -70,37 +92,37 @@ export const createOrder = async (req, res) => {
       totalPrice,
       appliedPromo: appliedPromo || null,
       paymentMethod,
-      deliveryAddress: deliveryAddress || user.address || "No address provided",
+      deliveryAddress: deliveryAddress || "No address provided",
+      status: "Pending",
     });
 
-    // ✅ Optionally clear cart
+    // Clear Cart
     user.cart = [];
     await user.save();
+
+    // Auto-assign employee
+    await assignEmployeeToOrder(order);
 
     await createLog({
       user: user._id,
       action: "Order Placed",
-      description: `Order placed successfully — ${orderItems.length} items, total ₹${totalPrice}`,
-      ipAddress: req.ip,
-      method: req.method,
+      description: `Order placed — Total ₹${totalPrice}`,
       endpoint: req.originalUrl,
+      method: req.method,
+      ipAddress: req.ip,
     });
 
-    res.status(201).json({
-      message: "Order placed successfully",
-      order,
-    });
+    res.status(201).json({ message: "Order placed successfully", order });
   } catch (error) {
-    console.error("Error creating order:", error);
+    console.error("Order Error:", error);
+
     await createLog({
       user: req.user?._id,
       action: "Order Creation Error",
       description: error.message,
-      ipAddress: req.ip,
-      method: req.method,
-      endpoint: req.originalUrl,
       status: "failed",
     });
+
     res.status(500).json({ message: error.message });
   }
 };
@@ -172,6 +194,93 @@ export const getAllOrders = async (req, res) => {
       endpoint: req.originalUrl,
       status: "failed",
     });
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
+
+
+
+// =======================
+//  EMPLOYEE CONFIRM ORDER (Generate Delivery PIN)
+// =======================
+
+export const confirmOrder = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    if (order.assignedTo.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    // Generate 6 digit delivery pin
+    const pin = Math.floor(100000 + Math.random() * 900000).toString();
+
+    order.status = "Confirmed";
+    order.deliveryPin = pin;
+    await order.save();
+
+    await createLog({
+      user: req.user._id,
+      action: "Order Confirmed",
+      description: `Order ${order._id} confirmed with PIN`,
+    });
+
+    res.json({ message: "Order confirmed", deliveryPin: pin });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// =======================
+//  EMPLOYEE COMPLETE ORDER (Verify PIN)
+// =======================
+
+export const completeOrder = async (req, res) => {
+  try {
+    const { pin } = req.body;
+
+    const order = await Order.findById(req.params.id);
+
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    if (order.assignedTo.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    if (order.deliveryPin !== pin) {
+      return res.status(400).json({ message: "Invalid PIN" });
+    }
+
+    order.status = "Delivered";
+    order.deliveryPin = null;
+    await order.save();
+
+    await createLog({
+      user: req.user._id,
+      action: "Order Delivered",
+      description: `Order ${order._id} marked Delivered`,
+    });
+
+    res.json({ message: "Order delivered successfully", order });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
+
+
+export const getEmployeeOrders = async (req, res) => {
+  try {
+    const orders = await Order.find({ assignedTo: req.user._id })
+      .sort({ createdAt: -1 });
+
+    res.json(orders);
+  } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
